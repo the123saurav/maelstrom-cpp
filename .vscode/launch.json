@@ -1,0 +1,26 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Run Echo",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/echo/echo", // Adjust the path to your executable
+            "args": [], // Add any command line arguments here
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "miDebuggerPath": "/Users/the123saurav/.vscode/extensions/ms-vscode.cpptools-1.19.9-darwin-arm64/debugAdapters/lldb-mi/bin/lldb-mi",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "cmake-build" // Adjust the task name if needed in tasks.json
+        }
+    ]
+}
