@@ -13,7 +13,7 @@ namespace maelstrom {
         struct logger {
             friend logger& get_logger();
 
-            inline void log(const std::string& msg) noexcept {
+            void log(const std::string& msg) const noexcept {
                 std::cerr << msg + "\n";
             }
         private:    
@@ -26,7 +26,6 @@ namespace maelstrom {
         logger& get_logger();
 
     } // core
-
 } // maelstrom
 
 #endif
