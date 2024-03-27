@@ -6,6 +6,7 @@
 namespace maelstrom {
     namespace data {
 
+        
         MsgBody::~MsgBody() {
         }
 
@@ -22,9 +23,14 @@ namespace maelstrom {
         Node::~Node(){}
 
         void Node::start_and_run() {
+            lg_.log("Starting node");
+
+            state_ = State::WAITING_FOR_INIT;
+
             std::string line;
             while (true) { // TODO add atomic bool
-                // read from stdin line terminated messages    
+                // read from stdin, newline terminated messages    
+                // TODO: buffered IO
                 std::getline(std::cin, line);
                 lg_.log("Received msg: " + line);
                 
@@ -37,6 +43,9 @@ namespace maelstrom {
                 }
                 lg_.log("Calling handler");
 
+                // We want to prevent callers from participating in ownership of message
+                // so that we alone would manage the lifetime of message.
+                // TODO: this makese our loop blocking on handler, we can make below std::async or TP based.
                 std::unique_ptr<MsgBody> resp_body = (it->second)(msg);
 
                 lg_.log("sending response");
@@ -47,7 +56,7 @@ namespace maelstrom {
             }
         }
 
-        void Node::registerHandler(const Handler& handler, std::initializer_list<MessageType> msg_types) {
+        void Node::registerHandler(const Handler& handler, const std::initializer_list<MessageType>& msg_types) {
             std::lock_guard lk{lock_};
             for(auto& msg_type: msg_types) {
                 handlers_[msg_type] = handler;
@@ -55,52 +64,53 @@ namespace maelstrom {
         }
 
         MessageType Node::get_type(const std::string& type) const noexcept {
-            if (type == "init") {
+            if (type == kInitType) {
                 return MessageType::INIT;
-            } else if (type == "init_ok") {
+            } else if (type == kInitOkType) {
                 return MessageType::INIT_OK;
             } else {
                 return MessageType::UNKNOWN;
             }
         }
 
-        std::shared_ptr<Init> Node::populate_init(boost::json::object& body_json) const {
-            lg_.log("Pupulating init in parse");
-            unsigned int msg_id = body_json["msg_id"].as_int64();
-            std::string node_id = body_json["node_id"].as_string().c_str(); // can we use move?
+        std::unique_ptr<Init> Node::parse_init(boost::json::object& body_json) const {
+            lg_.log("Parsing init");
+            
+            unsigned int msg_id = body_json[kMsgId].as_int64();
+            std::string node_id = body_json[kNodeId].as_string().c_str(); // can we use move?
 
-            boost::json::array node_ids_arr = body_json["node_ids"].as_array();
+            boost::json::array node_ids_arr = body_json[kNodeIds].as_array();
             std::vector<std::string> node_ids;
             for (auto& item : node_ids_arr) {
-                node_ids.push_back(item.as_string().c_str());
+                node_ids.emplace_back(item.as_string().c_str());
             }
 
             std::stringstream ss;
             ss << "msg_id: " << msg_id << ", node_id: " << node_id;
             lg_.log(ss.str());
-            return std::make_shared<Init>(msg_id, std::move(node_id), std::move(node_ids));        
+            return std::make_unique<Init>(msg_id, std::move(node_id), std::move(node_ids)); // Dont use std::move, compiler will RVO       
         }
 
-        std::shared_ptr<InitOk> Node::populate_init_ok(boost::json::object& body_json) const {
-            return std::make_shared<InitOk>(body_json["in_reply_to"].as_int64());
+        std::unique_ptr<InitOk> Node::parse_init_ok(boost::json::object& body_json) const {
+            return std::make_unique<InitOk>(body_json[kInReplyTo].as_int64());
         }
 
-        std::string Node::prepare_response(const std::shared_ptr<Message> initial_msg, std::unique_ptr<MsgBody> resp) const {
+        json_str Node::prepare_response(const std::shared_ptr<Message>& initial_msg, std::unique_ptr<MsgBody> resp) const {
              using namespace boost::json;
 
             object json_obj;
-            json_obj["src"] = initial_msg->dest_;
-            json_obj["dest"] = initial_msg->src_;
+            json_obj[kSrc] = initial_msg->dest_;
+            json_obj[kDest] = initial_msg->src_;
 
             // Check the actual type of MsgBody
-            if (typeid(*resp) == typeid(InitOk)) {
+            if (initial_msg->type_ == MessageType::INIT) {
                 InitOk* init_ok_body = dynamic_cast<InitOk*>(resp.get());
                 if (init_ok_body != nullptr) {
                     object body_obj;
-                    body_obj["type"] = "init_ok";
-                    body_obj["in_reply_to"] = init_ok_body->in_reply_to_;
+                    body_obj[kType] = kInitOkType;
+                    body_obj[kInReplyTo] = init_ok_body->in_reply_to_;
 
-                    json_obj["body"] = body_obj;
+                    json_obj[kBody] = body_obj;
                 }
             } else {
                 throw std::runtime_error{"Unhandled response"};
@@ -110,12 +120,14 @@ namespace maelstrom {
         }
 
         std::unique_ptr<InitOk> Node::handle_init(std::shared_ptr<Message> msg){
-            auto init = std::dynamic_pointer_cast<Init>(msg->body_);
-            id_ = init->node_id_;
-            peers_ = std::move(init->node_ids_);
-            lg_.log("Handled init");
-            state_ = State::READY;
-            return std::make_unique<InitOk>(init->msg_id_);
+            if (auto* init = dynamic_cast<Init*>(msg->body_.get())) { // Branch prediction should not be messed up here
+                id_ = init->node_id_;
+                peers_ = std::move(init->node_ids_);
+                lg_.log("Handled init");
+                state_ = State::READY;
+                return std::make_unique<InitOk>(init->msg_id_);
+            } 
+            throw std::runtime_error{"Bad body in Init handler"};
         }
     }
 }
