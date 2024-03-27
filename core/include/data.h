@@ -16,6 +16,10 @@ namespace maelstrom {
 
         const std::string kInitType = "init";
         const std::string kInitOkType = "init_ok";
+
+        const std::string kEchoType = "echo";
+        const std::string kEchoOkType = "echo_ok";
+
         const std::string kSrc = "src";
         const std::string kDest = "dest";
         const std::string kType = "type";
@@ -24,6 +28,7 @@ namespace maelstrom {
         const std::string kInReplyTo = "in_reply_to";
         const std::string kNodeId = "node_id";
         const std::string kNodeIds = "node_ids";
+        const std::string kEchoField = "echo";
 
         using json_str = std::string;
 
@@ -50,6 +55,23 @@ namespace maelstrom {
             unsigned int in_reply_to_;
 
             InitOk(unsigned int msg_id): in_reply_to_{msg_id} {}
+        };
+
+        struct Echo: public MsgBody {
+            unsigned int msg_id_;
+            std::string echo_;
+
+            Echo(unsigned int msg_id, std::string echo):
+                msg_id_{msg_id}, echo_{std::move(echo)} {}
+        };
+
+        struct EchoOk: public MsgBody {
+            unsigned int msg_id_;
+            unsigned int in_reply_to_;
+            std::string echo_;
+
+            EchoOk(unsigned int msg_id, unsigned int in_reply_to, std::string echo):
+                msg_id_{msg_id}, in_reply_to_{in_reply_to}, echo_{std::move(echo)} {}
         };
 
 
@@ -98,6 +120,8 @@ namespace maelstrom {
 
             std::string id_;
             std::vector<std::string> peers_;
+
+            std::atomic_uint msg_id = 1; // TODO: its assumed to be local to node
                  
             Node();
 
@@ -114,6 +138,10 @@ namespace maelstrom {
             std::unique_ptr<Init> parse_init(boost::json::object& body_json) const;
 
             std::unique_ptr<InitOk> parse_init_ok(boost::json::object& body_json) const;
+
+            std::unique_ptr<Echo> parse_echo(boost::json::object& body_json) const;
+
+            // std::unique_ptr<EchoOk> parse_echo_ok(boost::json::object& body_json) const;
 
             // Passing by ref is okay for shared_ptr as we are not increasing lifetime here.
             json_str prepare_response(const std::shared_ptr<Message>& initial_msg, std::unique_ptr<MsgBody> resp) const;
@@ -135,10 +163,18 @@ namespace maelstrom {
                     msg = std::make_shared<Message>(std::move(src), std::move(dest), MessageType::INIT);
                     msg->body_ = parse_init(bodyObj);
                     break;
-                case MessageType::INIT_OK:
-                    msg = std::make_shared<Message>(std::move(src), std::move(dest), MessageType::INIT_OK);
-                    msg->body_ = parse_init_ok(bodyObj);
-                    break;    
+                // case MessageType::INIT_OK:
+                //     msg = std::make_shared<Message>(std::move(src), std::move(dest), MessageType::INIT_OK);
+                //     msg->body_ = parse_init_ok(bodyObj);
+                //     break;
+                case MessageType::ECHO:
+                    msg = std::make_shared<Message>(std::move(src), std::move(dest), MessageType::ECHO);
+                    msg->body_ = parse_echo(bodyObj);
+                    break;
+                // case MessageType::ECHO_OK:
+                //     msg = std::make_shared<Message>(std::move(src), std::move(dest), MessageType::ECHO_OK);
+                //     msg->body_ = parse_init_ok(bodyObj);
+                //     break;        
                 default:
                     // TODO
                     throw std::runtime_error{"Unexpected message"};
