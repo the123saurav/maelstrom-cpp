@@ -68,6 +68,8 @@ namespace maelstrom {
                 return MessageType::INIT;
             } else if (type == kInitOkType) {
                 return MessageType::INIT_OK;
+            } else if (type == kEchoType) {
+                return MessageType::ECHO;
             } else {
                 return MessageType::UNKNOWN;
             }
@@ -95,6 +97,22 @@ namespace maelstrom {
             return std::make_unique<InitOk>(body_json[kInReplyTo].as_int64());
         }
 
+        std::unique_ptr<Echo> Node::parse_echo(boost::json::object& body_json) const {
+            lg_.log("Parsing echo");
+            
+            unsigned int msg_id = body_json[kMsgId].as_int64();
+            std::string echo = body_json[kEchoField].as_string().c_str(); // can we use move?
+        
+            std::stringstream ss;
+            ss << "msg_id: " << msg_id << ", echo: " << echo;
+            lg_.log(ss.str());
+            return std::make_unique<Echo>(msg_id, std::move(echo)); // Dont use std::move, compiler will RVO       
+        }
+
+        // std::unique_ptr<EchoOk> Node::parse_echo_ok(boost::json::object& body_json) const {
+        //     return std::make_unique<InitOk>(body_json[kInReplyTo].as_int64());
+        // }
+
         json_str Node::prepare_response(const std::shared_ptr<Message>& initial_msg, std::unique_ptr<MsgBody> resp) const {
              using namespace boost::json;
 
@@ -109,6 +127,17 @@ namespace maelstrom {
                     object body_obj;
                     body_obj[kType] = kInitOkType;
                     body_obj[kInReplyTo] = init_ok_body->in_reply_to_;
+
+                    json_obj[kBody] = body_obj;
+                }
+            } else if (initial_msg->type_ == MessageType::ECHO){
+                EchoOk* echo_ok_body = dynamic_cast<EchoOk*>(resp.get());
+                if (echo_ok_body != nullptr) {
+                    object body_obj;
+                    body_obj[kType] = kEchoOkType;
+                    body_obj[kMsgId] = echo_ok_body->msg_id_;
+                    body_obj[kInReplyTo] = echo_ok_body->in_reply_to_;
+                    body_obj[kEchoField] = echo_ok_body->echo_;
 
                     json_obj[kBody] = body_obj;
                 }

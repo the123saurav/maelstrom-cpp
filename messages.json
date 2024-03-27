@@ -1,0 +1,2 @@
+{"id":3,"src":"c3","dest":"n1","body":{"type":"init","node_id":"n1","node_ids":["n1","n2","n3","n4","n5"],"msg_id":1}}
+{"id":10,"src":"c10","dest":"n1","body":{"echo":"Please echo 12","type":"echo","msg_id":1}}
