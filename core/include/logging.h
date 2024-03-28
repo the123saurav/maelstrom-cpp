@@ -9,12 +9,14 @@
 namespace maelstrom {
     namespace core {
 
-        // Thread safe logger
+        // TODO: Make Thread safe logger
         struct logger {
             friend logger& get_logger();
 
             void log(const std::string& msg) const noexcept {
-                std::cerr << msg + "\n";
+                // #ifdef DEBUG
+                    std::cerr << msg + "\n";
+                // #endif
             }
         private:    
             logger();

@@ -7,6 +7,11 @@ file(GLOB_RECURSE SOURCES "src/*.cpp")
 # Find Boost libraries, including the JSON component
 find_package(Boost REQUIRED COMPONENTS system filesystem json)
 
+# Define DEBUG macro for Debug builds
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_definitions(-DDEBUG)
+endif()
+
 # Create a static library called 'core'
 add_library(core STATIC ${SOURCES})
 

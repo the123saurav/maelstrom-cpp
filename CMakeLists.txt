@@ -8,3 +8,4 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 # Include the subdirectories
 add_subdirectory(core)
 add_subdirectory(echo)
+add_subdirectory(broadcast)

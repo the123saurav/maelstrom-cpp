@@ -2,14 +2,14 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "cmake-configure",
+            "label": "cmake-configure-debug",
             "type": "shell",
             "command": "cmake",
             "args": [
                 "-S",
                 "${workspaceFolder}",
                 "-B",
-                "${workspaceFolder}/build"
+                "${workspaceFolder}/build-debug"
             ],
             "group": {
                 "kind": "build",
@@ -22,12 +22,66 @@
             "dependsOn": []
         },
         {
-            "label": "cmake-build",
+            "label": "cmake-configure-release",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-S",
+                "${workspaceFolder}",
+                "-B",
+                "${workspaceFolder}/build-release"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": [],
+            "dependsOn": []
+        },
+        {
+            "label": "cppcheck",
+            "type": "shell",
+            "command": "cppcheck",
+            "args": [
+                "--quiet",
+                "--force",
+                "--enable=all",
+                "${workspaceFolder}"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": {
+                "owner": "cpp",
+                "fileLocation": ["absolute"],
+                "pattern": {
+                    "regexp": "^(.*)"
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "^Checking [\\S\\s]*",
+                    "endsPattern": "^Checking [\\S\\s]*",
+                }
+            },
+            "dependsOn": ["cmake-configure-debug"]
+        },
+        {
+            "label": "cmake-build-debug",
             "type": "shell",
             "command": "cmake",
             "args": [
                 "--build",
-                "${workspaceFolder}/build"
+                "${workspaceFolder}/build-debug",
+                "--config",
+                "Debug"
             ],
             "group": {
                 "kind": "build",
@@ -37,7 +91,27 @@
                 "reveal": "always"
             },
             "problemMatcher": "$gcc",
-            "dependsOn": ["cmake-configure"]
+            "dependsOn": ["cppcheck"]
+        },
+        {
+            "label": "cmake-build-release",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/build-release"
+                "--config",
+                "Release"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": "$gcc",
+            "dependsOn": ["cmake-configure-release"]
         }
     ]
 }

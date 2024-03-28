@@ -20,7 +20,7 @@
                     "ignoreFailures": true
                 }
             ],
-            "preLaunchTask": "cmake-build" // Adjust the task name if needed in tasks.json
+            "preLaunchTask": "cmake-build-rel" // Adjust the task name if needed in tasks.json
         }
     ]
 }
