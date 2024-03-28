@@ -3,9 +3,13 @@
 #include "data.h"
 
 
-std::unique_ptr<maelstrom::data::EchoOk> handle_echo(std::shared_ptr<maelstrom::data::Message> msg){
+std::vector<std::unique_ptr<maelstrom::data::Message>> handle_echo(std::shared_ptr<maelstrom::data::Message> msg) {
     if (auto* echo = dynamic_cast<maelstrom::data::Echo*>(msg->body_.get())) { // Branch prediction should not be messed up here
-        return std::make_unique<maelstrom::data::EchoOk>(echo->msg_id_, echo->msg_id_, echo->echo_);
+        std::vector<std::unique_ptr<maelstrom::data::Message>> resp;
+        resp.emplace_back(std::make_unique<maelstrom::data::Message>(std::move(msg->dest_), 
+                    std::move(msg->src_), maelstrom::data::MessageType::ECHO_OK, 
+                        std::make_unique<maelstrom::data::EchoOk>(echo->msg_id_, echo->msg_id_, echo->echo_)));
+        return resp;
     } 
     throw std::runtime_error{"Bad body in Init handler"};
 }

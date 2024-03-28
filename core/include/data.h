@@ -20,6 +20,15 @@ namespace maelstrom {
         const std::string kEchoType = "echo";
         const std::string kEchoOkType = "echo_ok";
 
+        const std::string kTopologyType = "topology";
+        const std::string kTopologyOkType = "topology_ok";
+
+        const std::string kReadType = "read";
+        const std::string kReadOkType = "read_ok";
+
+        const std::string kBroadcastType = "broadcast";
+        const std::string kBroadcastOkType = "broadcast_ok";
+
         const std::string kSrc = "src";
         const std::string kDest = "dest";
         const std::string kType = "type";
@@ -29,12 +38,16 @@ namespace maelstrom {
         const std::string kNodeId = "node_id";
         const std::string kNodeIds = "node_ids";
         const std::string kEchoField = "echo";
+        const std::string kTopologyField = "topology";
+        const std::string kMessageField = "message";
+        const std::string kMessagesField = "messages";
 
         using json_str = std::string;
 
         enum class MessageType {
             INIT, INIT_OK,
             ECHO, ECHO_OK,
+            TOPOLOGY, TOPOLOGY_OK, READ, READ_OK, BROADCAST, BROADCAST_OK, 
             UNKNOWN
         };
 
@@ -74,6 +87,53 @@ namespace maelstrom {
                 msg_id_{msg_id}, in_reply_to_{in_reply_to}, echo_{std::move(echo)} {}
         };
 
+        struct Topology: public MsgBody {
+            unsigned int msg_id_;
+            std::unordered_map<std::string, std::vector<std::string>> topology_;
+
+            Topology(unsigned int msg_id, std::unordered_map<std::string, std::vector<std::string>> topology):
+                msg_id_{msg_id}, topology_(std::move(topology)) {}
+        };
+
+        struct TopologyOk: public MsgBody {
+            unsigned int in_reply_to_;
+
+            TopologyOk(unsigned int in_reply_to):
+                in_reply_to_(in_reply_to) {}
+        };
+
+        struct Broadcast: public MsgBody {
+            std::optional<unsigned int> msg_id_; // not set for gossip messages
+            unsigned int message_;
+
+            Broadcast(std::optional<unsigned int> msg_id, unsigned int message):
+                msg_id_{msg_id}, message_(message) {}
+        };
+
+        struct BroadcastOk: public MsgBody {
+            std::optional<unsigned int> in_reply_to_;
+
+            BroadcastOk(): in_reply_to_{{}} {}
+
+            BroadcastOk(unsigned int in_reply_to):
+                in_reply_to_(in_reply_to) {}
+        };
+
+        struct Read: public MsgBody {
+            unsigned int msg_id_;
+
+            Read(unsigned int msg_id):
+                msg_id_{msg_id} {}
+        };
+
+        struct ReadOk: public MsgBody {
+            unsigned int in_reply_to_;
+            std::vector<unsigned int> messages_;
+
+            ReadOk(unsigned int in_reply_to, std::vector<unsigned int> messages):
+                in_reply_to_{in_reply_to}, messages_(messages) {}
+        };
+
 
         // TODO: think about templatizing it to need to cast and vtable pointer mem cost
         // template<typename T>
@@ -86,18 +146,23 @@ namespace maelstrom {
 
             Message(std::string src, std::string dest, MessageType type): 
                 src_{std::move(src)}, dest_{std::move(dest)}, type_{type}, body_{nullptr} {}
+
+            Message(std::string src, std::string dest, MessageType type, std::unique_ptr<MsgBody> body): 
+                src_{std::move(src)}, dest_{std::move(dest)}, type_{type}, body_{std::move(body)} {}    
         };
 
         /*
             We want handler to support stateless like lambda as well as stateful
             handlers.
         */
-        using Handler = std::function<std::unique_ptr<MsgBody>(std::shared_ptr<Message>&)>;
+        using Handler = std::function<std::vector<std::unique_ptr<Message>>(std::shared_ptr<Message>&)>;
 
         class Node {
         public:    
             // Meyer's singleton, safe to return by ref as lifetime is static
             static Node& get_instance();
+
+            std::string& get_id();
             
             // Creates or replaces a handler for message;
             void registerHandler(const Handler& handler, const std::initializer_list<MessageType>& msg_types);
@@ -141,10 +206,16 @@ namespace maelstrom {
 
             std::unique_ptr<Echo> parse_echo(boost::json::object& body_json) const;
 
+            std::unique_ptr<Topology> parse_topology(boost::json::object& body_json) const;
+
+            std::unique_ptr<Broadcast> parse_broadcast(boost::json::object& body_json) const;
+
+            std::unique_ptr<Read> parse_read(boost::json::object& body_json) const;
+
             // std::unique_ptr<EchoOk> parse_echo_ok(boost::json::object& body_json) const;
 
             // Passing by ref is okay for shared_ptr as we are not increasing lifetime here.
-            json_str prepare_response(const std::shared_ptr<Message>& initial_msg, std::unique_ptr<MsgBody> resp) const;
+            json_str prepare_response(const std::shared_ptr<Message>& initial_msg, std::unique_ptr<Message> resp) const;
 
             std::shared_ptr<Message> parse_message(const std::string& json_str) {
                 boost::json::value jv = boost::json::parse(json_str);
@@ -174,7 +245,19 @@ namespace maelstrom {
                 // case MessageType::ECHO_OK:
                 //     msg = std::make_shared<Message>(std::move(src), std::move(dest), MessageType::ECHO_OK);
                 //     msg->body_ = parse_init_ok(bodyObj);
-                //     break;        
+                //     break;   
+                case MessageType::TOPOLOGY:
+                    msg = std::make_shared<Message>(std::move(src), std::move(dest), MessageType::TOPOLOGY);
+                    msg->body_ = parse_topology(bodyObj);
+                    break;     
+                case MessageType::BROADCAST:
+                    msg = std::make_shared<Message>(std::move(src), std::move(dest), MessageType::BROADCAST);
+                    msg->body_ = parse_broadcast(bodyObj);
+                    break;     
+                case MessageType::READ:
+                    msg = std::make_shared<Message>(std::move(src), std::move(dest), MessageType::READ);
+                    msg->body_ = parse_read(bodyObj);
+                    break;             
                 default:
                     // TODO
                     throw std::runtime_error{"Unexpected message"};
@@ -182,7 +265,7 @@ namespace maelstrom {
                 return msg;
             }
 
-            std::unique_ptr<InitOk> handle_init(std::shared_ptr<Message> msg);
+            std::vector<std::unique_ptr<Message>> handle_init(std::shared_ptr<Message> msg);
         };
     }
 }
