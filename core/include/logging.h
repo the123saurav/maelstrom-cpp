@@ -14,9 +14,9 @@ namespace maelstrom {
             friend logger& get_logger();
 
             void log(const std::string& msg) const noexcept {
-                // #ifdef DEBUG
+                #ifdef DEBUG
                     std::cerr << msg + "\n";
-                // #endif
+                #endif
             }
         private:    
             logger();

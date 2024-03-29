@@ -41,11 +41,12 @@ std::vector<std::unique_ptr<data::Message>> Broadcaster::handle_broadcast(std::s
             lg_.log("Ignoring duplicate broadcast");
         } else {
             messages_.insert(broadcast->message_);
-            // TODO: Filter out peers if its same as source
             for(const auto& peer: peers_) {
-                response.emplace_back(std::make_unique<maelstrom::data::Message>(node_.get_id(), 
+                if (peer != msg->src_) {
+                    response.emplace_back(std::make_unique<maelstrom::data::Message>(node_.get_id(), 
                         peer, maelstrom::data::MessageType::BROADCAST, 
                             std::make_unique<maelstrom::data::Broadcast>(std::optional<unsigned int>{}, broadcast->message_)));
+                }
             }
         }
         return response;
